@@ -55,11 +55,25 @@ class Wait(smach.State):
 class Follow(smach.State):
     def __init__(self):
         smach.State.__init__(self, outcomes=['running', 'work4'])
+        self.loop_start_time = None
 
     def execute(self, userdata):
         global g_twist_pub, g_full_red_line_count
 
+        if self.loop_start_time == None:
+            self.loop_start_time = time.time()
+
         if g_full_red_line_count != 2:
+            # start line
+            if g_full_red_line_count == 4:
+                g_full_red_line_count = 0
+                g_twist_pub.publish(Twist())
+                util.signal(2)
+                f = open("loops time.txt", 'w+')
+                f.write(str(time.time() - self.loop_start_time) + '\n')
+                f.close()
+                self.loop_start_time = None
+
             g_twist_pub.publish(current_twist)
             return 'running'
         else:
@@ -73,7 +87,7 @@ class Follow(smach.State):
             g_twist_pub.publish(Twist())
             rotate(-35)
             tmp_time = time.time()
-            while time.time() - tmp_time < 1.6:
+            while time.time() - tmp_time < 1.7:
                 g_twist_pub.publish(current_twist)
             g_twist_pub.publish(Twist())
             return 'work4'
@@ -197,7 +211,7 @@ class SmCore:
                         g_full_red_line = True
                         g_half_red_line = False
                         if count_full_red_line:
-                            g_full_red_line_count += 1
+                            g_full_red_line_count +=1
 
                     elif x + radius < self.cx_white: #half red line
                         g_half_red_line = True
@@ -210,11 +224,7 @@ class SmCore:
             #cv2.waitKey(3)
 
     def execute(self):
-        begin = time.time()
         outcome = self.sm.execute()
-        if outcome == 'end':
-            util.signal(2)
-            print 'time used:', time.time() - begin
         rospy.spin()
         self.sis.stop()
 

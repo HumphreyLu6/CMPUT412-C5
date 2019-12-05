@@ -31,7 +31,7 @@ from detectshapes import Contour
 from util import signal, rotate
 import util
 
-import work4_beta as work4
+import work4 as work4
 
 class Wait(smach.State):
     def __init__(self):
@@ -185,7 +185,7 @@ class Work1(smach.State):
             _, red_contours1 = cd.getContours(self.hsv, 1)
             if len(red_contours1) > 0:
                 print "numer of objects:", len(red_contours1)
-                signal(len(red_contours1),onColor=Led.ORANGE)
+                signal(len(red_contours1),onColor1=Led.ORANGE)
                 break
 
     def shape_cam_callback(self, msg):
@@ -395,8 +395,7 @@ class SmCore:
             with sm_sub_work4:
                 smach.StateMachine.add('PushBox', work4.PushBox(),
                                         transitions={'completed':'SearchContour',
-                                                    'end':'end',
-                                                    'restart': 'PushBox'
+                                                    'end':'end'
                                                     })
 
 

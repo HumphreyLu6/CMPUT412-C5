@@ -54,25 +54,24 @@ class PushBox(smach.State):
         self.listener = tf.TransformListener()
         self.twist_pub = None
 
+        self.is_initial_pose_set = False
+
         self.box_tag_id = None
         self.goal_tag_id = None
-        #self.box_stall_id = None
         self.goal_stall_id = None
 
         self.box_tag_saw = None
 
-        self.trial = 0
-
     def execute(self, userdata):
-        if self.trial == 0:
+        # set to None for each loop
+        self.box_tag_id = None
+        self.goal_tag_id = None
+        self.goal_stall_id = None
+        self.box_tag_saw = None
+
+        if self.is_initial_pose_set == False:
             self.set_init_map_pose()
-        self.trial += 1
-        print "trial: ", self.trial
-        if self.trial > 2:
-            goal_pose = util.goal_pose('map', ON_RAMP_WAYPOINT[0], ON_RAMP_WAYPOINT[1])
-            self.client.send_goal(goal_pose)
-            self.client.wait_for_result()
-            return 'completed'
+            self.is_initial_pose_set = True
 
         ar_tag_sub = rospy.Subscriber('/ar_pose_marker', AlvarMarkers, self.ar_tag_sub_callback)
         print "Waiting for /ar_pose_marker message..."
@@ -80,11 +79,14 @@ class PushBox(smach.State):
         self.twist_pub = rospy.Publisher("/cmd_vel_mux/input/teleop", Twist, queue_size=1)
 
         current_box_stall_id = None
+
         tmp_time = time.time()
+        Is_in_stall_5 = False
         while True:
             if rospy.is_shutdown():
                 ar_tag_sub.unregister()
                 return 'end'
+
             if self.box_tag_id != None and self.goal_tag_id != None:
                 try:
                     (trans, _) = self.listener.lookupTransform('/map', '/ar_marker_' + str(self.box_tag_id), rospy.Time(0))
@@ -92,7 +94,6 @@ class PushBox(smach.State):
                     current_box_stall_id= get_cloest_stall(box_tag_point)
                 except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
                     print "TF look up exception when look up goal tag"
-
 
                 if current_box_stall_id != None and self.goal_stall_id != None:
                     assert current_box_stall_id > 1 and current_box_stall_id < 5, \
@@ -105,30 +106,25 @@ class PushBox(smach.State):
             twist.angular.z = - 0.4
             self.twist_pub.publish(twist)
 
-            if time.time() - tmp_time > 5:
+            if (time.time() - tmp_time) > 5 and not Is_in_stall_5:
                 goal_pose = util.goal_pose('map', PARK_SPOT_WAYPOINTS['6'][0], Quaternion(0,0,0,1))
                 self.client.send_goal(goal_pose)
                 print "waiting for result ", goal_pose.target_pose.header.frame_id
                 self.client.wait_for_result()
-
-            if time.time() - tmp_time > 20:
-                goal_pose = util.goal_pose('map', PARK_SPOT_WAYPOINTS['7'][0], Quaternion(0,0,0,1))
-                self.client.send_goal(goal_pose)
-                print "waiting for result ", goal_pose.target_pose.header.frame_id
-                self.client.wait_for_result()
+                Is_in_stall_5 = True
 
         box_is_left = True
         if int(current_box_stall_id) > int(self.goal_stall_id):
             box_is_left = False
 
         if box_is_left:
-            if current_box_stall_id == 2:
-                point = PARK_SPOT_WAYPOINTS['6'][0]
-                quaternion = PARK_SPOT_WAYPOINTS['6'][1]
-                goal_pose = util.goal_pose('map', point, quaternion)
-                self.client.send_goal(goal_pose)
-                print "waiting for result ", goal_pose.target_pose.header.frame_id
-                self.client.wait_for_result()
+            # if current_box_stall_id == 2:
+            #     point = PARK_SPOT_WAYPOINTS['6'][0]
+            #     quaternion = PARK_SPOT_WAYPOINTS['6'][1]
+            #     goal_pose = util.goal_pose('map', point, quaternion)
+            #     self.client.send_goal(goal_pose)
+            #     print "waiting for result ", goal_pose.target_pose.header.frame_id
+            #     self.client.wait_for_result()
             point = PARK_SPOT_WAYPOINTS[str(current_box_stall_id-1)][0]
             quaternion = PARK_SPOT_WAYPOINTS[str(current_box_stall_id-1)][1]
             goal_pose = util.goal_pose('map', point, quaternion)
@@ -139,12 +135,10 @@ class PushBox(smach.State):
             for i in range(abs(current_box_stall_id - self.goal_stall_id)):
                 if i == 0 and current_box_stall_id == 2:
                     push_dist = SQUARE_DIST * 2 - BOX_EDGE_LENGTH/2 - ROBOT_LENGTH/2 - 0.1
-                    util.move(push_dist, linear_scale=0.1)
+                    util.move(push_dist, linear_scale=0.2)
                 else:
                     util.move(-0.6, linear_scale=0.3)
                     self.go_to_side('box_front')
-                    # util.move(AMCL_APPROACH_BOX)
-                    # rospy.sleep(1)
                     push_dist = SQUARE_DIST + AMCL_APPROACH_BOX - 0.05
                     util.move(push_dist, linear_scale= 0.2)
         else:
@@ -156,19 +150,20 @@ class PushBox(smach.State):
             self.client.wait_for_result()
             util.rotate(90)
             for i in range(abs(current_box_stall_id - self.goal_stall_id)):
-                if i == 0:
-                    util.move(-0.3, linear_scale=0.3)
+                if i == 0 and current_box_stall_id == 4:
+                    push_dist = SQUARE_DIST * 2 - BOX_EDGE_LENGTH/2 - ROBOT_LENGTH/2 - 0.1
+                    util.move(push_dist, linear_scale=0.2)
                 else:
                     util.move(-0.6, linear_scale=0.3)
-                self.go_to_side('box_front')
-                if i == 0:
-                    util.rotate(6, max_error=2, anglular_scale=0.5)
+                    self.go_to_side('box_front')
+                    # if i == 0:
+                    #     util.rotate(6, max_error=2, anglular_scale=0.5)
 
-                push_dist = SQUARE_DIST + AMCL_APPROACH_BOX - 0.07
-                util.move(push_dist, linear_scale= 0.2)
+                    push_dist = SQUARE_DIST + AMCL_APPROACH_BOX - 0.07
+                    util.move(push_dist, linear_scale= 0.2)
 
-        util.signal(2, onColor = Led.GREEN, onColor2=Led.RED)
-        util.move(-0.2)
+        util.signal(2, onColor1 = Led.GREEN, onColor2=Led.RED)
+        util.move(-0.2, linear_scale = 0.3)
         ar_tag_sub.unregister()
         return 'completed'
 
@@ -177,7 +172,7 @@ class PushBox(smach.State):
             if marker.id == BOX_TAG_ID:
                 if self.box_tag_id == None:
                     self.box_tag_id = marker.id
-                    util.signal(quantity=1, onColor=Led.RED)
+                    util.signal(quantity=1, onColor1 = Led.RED)
                     rospy.sleep(0.5)
 
                 self.box_tag_saw = True
@@ -187,7 +182,7 @@ class PushBox(smach.State):
             if marker.id == GOAL_TAG_ID:
                 if self.goal_tag_id == None:
                     self.goal_tag_id = marker.id
-                    util.signal(quantity=1, onColor=Led.GREEN)
+                    util.signal(quantity=1, onColor1=Led.GREEN)
                 if self.goal_stall_id == None:
                     try:
                         (trans, _) = self.listener.lookupTransform('/map', '/ar_marker_' + str(self.goal_tag_id), rospy.Time(0))
@@ -381,9 +376,9 @@ class SearchContour(smach.State):
                 if len(red_contours) > 0:
                     print red_contours, contour['shape_at_loc2']
                     if contour['shape_at_loc2'] in red_contours:
-                        util.signal(1, onColor=Led.ORANGE)
+                        util.signal(1, onColor1=Led.ORANGE)
                         rospy.sleep(1)
-                        util.signal(2, onColor=Led.ORANGE, onColor2=Led.GREEN)
+                        util.signal(2, onColor1=Led.ORANGE, onColor2=Led.GREEN)
                         return 'completed'
             return 'completed'
 

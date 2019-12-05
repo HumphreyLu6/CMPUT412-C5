@@ -18,19 +18,13 @@ sound_pub = rospy.Publisher('/mobile_base/commands/sound', Sound, queue_size=1)
 def approxEqual(a, b, tol = 0.001):
     return abs(a - b) <= tol
 
-def signal(quantity=1,onColor=Led.GREEN,offColor=Led.BLACK,interval=0.5,onColor2=None):
+def signal(quantity=1,onColor1=Led.GREEN, onColor2=Led.GREEN, offColor=Led.BLACK, interval=0.3):
     
     if quantity == 1:
-        led_pub_1.publish(onColor)
-    elif quantity == 2:
-        led_pub_1.publish(onColor)
-        if onColor2 != None:
-            led_pub_2.publish(onColor2)
-        else:
-            led_pub_2.publish(onColor)
+        led_pub_1.publish(onColor1)
     else:
-        led_pub_1.publish(onColor)
-        led_pub_2.publish(onColor)
+        led_pub_1.publish(onColor1)
+        led_pub_2.publish(onColor2)
 
     for i in range(quantity):
         sound_pub.publish(1)
