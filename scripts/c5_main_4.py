@@ -61,7 +61,7 @@ class Follow(smach.State):
         self.integral = 0
         self.previous_error = 0
 
-        self.Kp = - 1 / 200.0
+        self.Kp = - 2 / 200.0
         self.Kd = 1 / 3000.0
         self.Ki = 0.0
 
@@ -86,12 +86,12 @@ class Follow(smach.State):
             rospy.sleep(0.5)
 
             tmp_time = time.time()
-            while time.time() - tmp_time < 2:
+            while time.time() - tmp_time < 1.4:
                 g_twist_pub.publish(current_twist)
             g_twist_pub.publish(Twist())
-            rotate(-35)
+            rotate(-30)
             tmp_time = time.time()
-            while time.time() - tmp_time < 1.7:
+            while time.time() - tmp_time < 1.23:
                 g_twist_pub.publish(current_twist)
             g_twist_pub.publish(Twist())
             
@@ -109,9 +109,6 @@ class Follow(smach.State):
                 g_full_red_line_count = 0
                 g_twist_pub.publish(Twist())
                 util.signal(2)
-                f = open("loops time.txt", 'w+')
-                f.write(str(time.time() - self.loop_start_time) + '\n')
-                f.close()
                 self.loop_start_time = None
 
             g_twist_pub.publish(current_twist)
@@ -166,7 +163,7 @@ class Follow(smach.State):
 
             # BEGIN CONTROL
             err = self.cx_white - w / 2
-            current_twist.linear.x = 0.5  # and <= 1.7
+            current_twist.linear.x = 0.7  # and <= 1.7
 
             self.integral = self.integral + err * 0.05
             self.derivative = (err - self.previous_error) / 0.05
