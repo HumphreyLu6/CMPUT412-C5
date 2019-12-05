@@ -55,28 +55,32 @@ class Wait(smach.State):
 class Follow(smach.State):
     def __init__(self):
         smach.State.__init__(self, outcomes=['running', 'work4'])
+
+        self.bridge = cv_bridge.CvBridge()
+
+        self.integral = 0
+        self.previous_error = 0
+
+        self.Kp = - 1 / 200.0
+        self.Kd = 1 / 3000.0
+        self.Ki = 0.0
+
+        self.subscribered = False
+        self.usb_cam_subscriber = None
+
         self.loop_start_time = None
 
     def execute(self, userdata):
-        global g_twist_pub, g_full_red_line_count
+        global g_twist_pub, g_full_red_line_count, current_twist, g_work4_returned
+
+        if self.subscribered == False:
+            self.subscribe()
+            self.subscribered = True
 
         if self.loop_start_time == None:
             self.loop_start_time = time.time()
 
-        if g_full_red_line_count != 2:
-            # start line
-            if g_full_red_line_count == 4:
-                g_full_red_line_count = 0
-                g_twist_pub.publish(Twist())
-                util.signal(2)
-                f = open("loops time.txt", 'w+')
-                f.write(str(time.time() - self.loop_start_time) + '\n')
-                f.close()
-                self.loop_start_time = None
-
-            g_twist_pub.publish(current_twist)
-            return 'running'
-        else:
+        if g_full_red_line_count == 2 and not g_work4_returned:
             twist = Twist()
             g_twist_pub.publish(twist)
             rospy.sleep(0.5)
@@ -90,54 +94,36 @@ class Follow(smach.State):
             while time.time() - tmp_time < 1.7:
                 g_twist_pub.publish(current_twist)
             g_twist_pub.publish(Twist())
+            
+            self.usb_cam_subscriber.unregister()
+            self.subscribered = False
+
+            g_work4_returned = True
             return 'work4'
 
-class SmCore:
-    def __init__(self):
-        self.bridge = cv_bridge.CvBridge()
+        else:
+            if g_full_red_line_count == 3:
+                g_work4_returned = False
+            # start line
+            if g_full_red_line_count == 4:
+                g_full_red_line_count = 0
+                g_twist_pub.publish(Twist())
+                util.signal(2)
+                f = open("loops time.txt", 'w+')
+                f.write(str(time.time() - self.loop_start_time) + '\n')
+                f.close()
+                self.loop_start_time = None
 
-        self.integral = 0
-        self.previous_error = 0
-
-        self.Kp = - 1 / 200.0
-        self.Kd = 1 / 3000.0
-        self.Ki = 0.0
-
-        rospy.Subscriber('usb_cam/image_raw', Image, self.usb_image_callback)
+            g_twist_pub.publish(current_twist)
+            return 'running'
+    
+    def subscribe(self):
+        self.usb_cam_subscriber = rospy.Subscriber('usb_cam/image_raw', Image, self.usb_image_callback)
         print "Waiting for usb_cam/image_raw message..."
         rospy.wait_for_message("usb_cam/image_raw", Image)
 
-        self.sm = smach.StateMachine(outcomes=['end'])
-
-        self.sis = smach_ros.IntrospectionServer('server_name', self.sm, '/SM_ROOT')
-        self.sis.start()
-
-        with self.sm:
-            smach.StateMachine.add('Wait', Wait(),
-                                    transitions={'end': 'end',
-                                                'start': 'Follow'})
-            smach.StateMachine.add('Follow', Follow(),
-                                    transitions={'running':'Follow',
-                                                'work4': 'SM_SUB_Work4'})
-
-            # Create the sub SMACH state machine
-            sm_sub_work4 = smach.StateMachine(outcomes=['end', 'returned'])
-            # Open the container
-            with sm_sub_work4:
-                smach.StateMachine.add('PushBox', work4.PushBox(),
-                                        transitions={'completed':'ON_RAMP',
-                                                    'end':'end'})
-
-                smach.StateMachine.add('ON_RAMP', work4.ON_RAMP(),
-                                        transitions={'end':'end',
-                                                    'returned':'returned'})
-
-            smach.StateMachine.add("SM_SUB_Work4", sm_sub_work4,
-                                    transitions={'end':'end',
-                                                'returned':'Follow'})
-
     def usb_image_callback(self, msg):
-        global g_full_red_line, g_half_red_line, g_full_red_line_count
+        global g_full_red_line, g_half_red_line, g_full_red_line_count, current_twist
 
         count_full_red_line = False
         if g_full_red_line == False:
@@ -223,6 +209,38 @@ class SmCore:
             #cv2.imshow("refer_dot", image)
             #cv2.waitKey(3)
 
+class SmCore:
+    def __init__(self):
+
+        self.sm = smach.StateMachine(outcomes=['end'])
+
+        self.sis = smach_ros.IntrospectionServer('server_name', self.sm, '/SM_ROOT')
+        self.sis.start()
+
+        with self.sm:
+            smach.StateMachine.add('Wait', Wait(),
+                                    transitions={'end': 'end',
+                                                'start': 'Follow'})
+            smach.StateMachine.add('Follow', Follow(),
+                                    transitions={'running':'Follow',
+                                                'work4': 'SM_SUB_Work4'})
+
+            # Create the sub SMACH state machine
+            sm_sub_work4 = smach.StateMachine(outcomes=['end', 'returned'])
+            # Open the container
+            with sm_sub_work4:
+                smach.StateMachine.add('PushBox', work4.PushBox(),
+                                        transitions={'completed':'ON_RAMP',
+                                                    'end':'end'})
+
+                smach.StateMachine.add('ON_RAMP', work4.ON_RAMP(),
+                                        transitions={'end':'end',
+                                                    'returned':'returned'})
+
+            smach.StateMachine.add("SM_SUB_Work4", sm_sub_work4,
+                                    transitions={'end':'end',
+                                                'returned':'Follow'})
+
     def execute(self):
         outcome = self.sm.execute()
         rospy.spin()
@@ -233,6 +251,8 @@ if __name__ == "__main__":
     g_full_red_line = False
     g_half_red_line = False
     current_twist = Twist()
+
+    g_work4_returned = False
 
     g_full_red_line_count = 0
 
