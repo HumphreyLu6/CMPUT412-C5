@@ -84,14 +84,13 @@ class Follow(smach.State):
             twist = Twist()
             g_twist_pub.publish(twist)
             rospy.sleep(0.5)
-
             tmp_time = time.time()
-            while time.time() - tmp_time < 1.4:
+            while time.time() - tmp_time < 1.85:
                 g_twist_pub.publish(current_twist)
             g_twist_pub.publish(Twist())
-            rotate(-30)
+            rotate(-35)
             tmp_time = time.time()
-            while time.time() - tmp_time < 1.23:
+            while time.time() - tmp_time < 1.7:
                 g_twist_pub.publish(current_twist)
             g_twist_pub.publish(Twist())
             
@@ -163,7 +162,12 @@ class Follow(smach.State):
 
             # BEGIN CONTROL
             err = self.cx_white - w / 2
-            current_twist.linear.x = 0.7  # and <= 1.7
+            if g_full_red_line_count == 2 and not g_work4_returned:
+                current_twist.linear.x = 0.5
+                self.Kp = - 1 / 200.0
+            else:
+                self.Kp = - 2 / 200.0
+                current_twist.linear.x = 0.7  # and <= 1.7
 
             self.integral = self.integral + err * 0.05
             self.derivative = (err - self.previous_error) / 0.05

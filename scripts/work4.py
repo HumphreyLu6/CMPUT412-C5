@@ -69,7 +69,7 @@ class PushBox(smach.State):
         self.goal_stall_id = None
         self.box_tag_saw = None
 
-        if self.is_initial_pose_set == False:
+        if self.is_initial_pose_set == False or True:
             self.set_init_map_pose()
             self.is_initial_pose_set = True
 
@@ -96,11 +96,11 @@ class PushBox(smach.State):
                     print "TF look up exception when look up goal tag"
 
                 if current_box_stall_id != None and self.goal_stall_id != None:
-                    assert current_box_stall_id > 1 and current_box_stall_id < 5, \
-                        "current_box_stall_id = {0}".format(str(current_box_stall_id))
-                    assert current_box_stall_id != self.goal_stall_id, \
-                        "current_box_stall_id = {0}, self.goal_stall_id = {1}".format(str(current_box_stall_id), \
-                            str(self.goal_stall_id))
+                    print "current_box_stall_id", current_box_stall_id, 'self.goal_stall_id', self.goal_stall_id
+                    if current_box_stall_id == 1 or current_box_stall_id == 5:
+                        return 'completed'
+                    if current_box_stall_id == self.goal_stall_id:
+                        return 'completed'
                     break
             twist = Twist()
             twist.angular.z = - 0.4
@@ -135,12 +135,13 @@ class PushBox(smach.State):
             for i in range(abs(current_box_stall_id - self.goal_stall_id)):
                 if i == 0 and current_box_stall_id == 2:
                     push_dist = SQUARE_DIST * 2 - BOX_EDGE_LENGTH/2 - ROBOT_LENGTH/2 - 0.1
-                    util.move(push_dist, linear_scale=0.2)
+                    util.move(push_dist, linear_scale=0.1)
                 else:
-                    util.move(-0.6, linear_scale=0.3)
-                    self.go_to_side('box_front')
+                    util.move(-0.7, linear_scale=0.3)
+                    if not self.go_to_side('box_front'):
+                        return 'completed'
                     push_dist = SQUARE_DIST + AMCL_APPROACH_BOX - 0.05
-                    util.move(push_dist, linear_scale= 0.2)
+                    util.move(push_dist, linear_scale= 0.1)
         else:
             point = PARK_SPOT_WAYPOINTS[str(int(current_box_stall_id)+1)][0]
             quaternion = PARK_SPOT_WAYPOINTS[str(int(current_box_stall_id)+1)][1]
@@ -148,19 +149,20 @@ class PushBox(smach.State):
             self.client.send_goal(goal_pose)
             print "waiting for result ", goal_pose.target_pose.header.frame_id
             self.client.wait_for_result()
-            util.rotate(90)
+            util.rotate(87)
             for i in range(abs(current_box_stall_id - self.goal_stall_id)):
                 if i == 0 and current_box_stall_id == 4:
                     push_dist = SQUARE_DIST * 2 - BOX_EDGE_LENGTH/2 - ROBOT_LENGTH/2 - 0.1
-                    util.move(push_dist, linear_scale=0.2)
+                    util.move(push_dist, linear_scale=0.1)
                 else:
-                    util.move(-0.6, linear_scale=0.3)
-                    self.go_to_side('box_front')
+                    util.move(-0.7, linear_scale=0.3)
+                    if not self.go_to_side('box_front'):
+                        return 'completed'
                     # if i == 0:
                     #     util.rotate(6, max_error=2, anglular_scale=0.5)
 
                     push_dist = SQUARE_DIST + AMCL_APPROACH_BOX - 0.07
-                    util.move(push_dist, linear_scale= 0.2)
+                    util.move(push_dist, linear_scale= 0.1)
 
         util.signal(2, onColor1 = Led.GREEN, onColor2=Led.RED)
         util.move(-0.2, linear_scale = 0.3)
@@ -192,6 +194,7 @@ class PushBox(smach.State):
                         print "TF look up exception when look up goal tag"
 
     def go_to_side(self, side):
+        tmp_time = time.time()
         while True:
             self.br.sendTransform(
                 BOX_MIDDLE_OFFSET_FROM_TAG,
@@ -215,11 +218,13 @@ class PushBox(smach.State):
                 self.client.send_goal(goal_pose)
                 print "waiting for result ", goal_pose.target_pose.header.frame_id
                 self.client.wait_for_result()
-                break
+                return True
             except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
                 print "TF look up exception when look up goal tag"
+                if time.time() - tmp_time > 15:
+                    return False
             else:
-                break
+                return True
 
     def look_up_box(self, child_frame, parent_frame):
         self.br.sendTransform(
