@@ -153,7 +153,7 @@ class PushBox(smach.State):
             if current_box_stall_id == 3:
                 util.rotate(81)
             else:
-                util.rotate(88)
+                util.rotate(89)
             for i in range(abs(current_box_stall_id - self.goal_stall_id)):
                 if i == 0 and current_box_stall_id == 4:
                     push_dist = SQUARE_DIST * 2 - BOX_EDGE_LENGTH/2 - ROBOT_LENGTH/2 - 0.1
