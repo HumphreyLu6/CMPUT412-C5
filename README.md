@@ -156,7 +156,7 @@ searching strategy:
     - Set initial pose when the robot is off ramp instead of the start point of the game to help localization and precision.
     - The docking process is based on waypoints. We test the waypoints one by one to ensure the the robot will dock on point.
     - The robot will skip the rest of waypoints if all task at location 4 have been completed.
-
+    - Compared with C4, we rewrote the parameters as files passed into the launch file, which greatly improved navigation.
 - Project management:
     - The code file for work4 is seperate from the main code for further improvement on the coding style.
     - Heavliy used simple task functions like rotation and signal (led and sound) have been seperated from the original file to increase simplicity and reusability.
@@ -199,6 +199,8 @@ searching strategy:
 - https://github.com/stwklu/CMPUT_412_code/
 - https://www.pyimagesearch.com/2016/02/08/opencv-shape-detection/
 - https://github.com/TianqiCS/CMPUT-412-C2
+- https://github.com/HumphreyLu6/CMPUT-412-C4
+- https://github.com/HumphreyLu6/CMPUT-412-C3
 - https://github.com/HumphreyLu6/CMPUT412_demo5_p2
 - https://www.cnblogs.com/kuangxionghui/p/8335853.html
 - https://eclass.srv.ualberta.ca/pluginfile.php/5209083/mod_page/content/60/Competition%202_F19%20Line%20Following%20and%20object%20counting.pdf
